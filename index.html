@@ -8,6 +8,10 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
 <body class="bg-[#f9fafb]">
     <div id="root"></div>
@@ -15,13 +19,13 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Función para cálculos de tiempo (Duración y Espera)
+        // Función para calcular diferencias de tiempo
         function diffMinutes(t1, t2) {
             if (!t1 || !t2) return null;
             const [h1, m1] = t1.split(":").map(Number);
             const [h2, m2] = t2.split(":").map(Number);
             let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-            if (diff < 0) diff += 1440; // Por si pasa de medianoche
+            if (diff < 0) diff += 1440;
             const h = Math.floor(diff / 60);
             const m = diff % 60;
             return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -29,138 +33,171 @@
 
         function App() {
             const [records, setRecords] = useState(() => {
-                const saved = localStorage.getItem("sika_data_v3");
+                const saved = localStorage.getItem("sika_data_vFinal");
                 return saved ? JSON.parse(saved) : [];
             });
             const [showForm, setShowForm] = useState(false);
+            const [editId, setEditId] = useState(null);
             const [form, setForm] = useState({
                 equipo: "", novedad: "", reporte: "", inicio: "", fin: "", status: "Pendiente", fecha: new Date().toLocaleDateString()
             });
 
             useEffect(() => {
-                localStorage.setItem("sika_data_v3", JSON.stringify(records));
+                localStorage.setItem("sika_data_vFinal", JSON.stringify(records));
             }, [records]);
+
+            const abrirEditor = (r) => {
+                setForm(r);
+                setEditId(r.id);
+                setShowForm(true);
+            };
 
             const guardar = () => {
                 if(!form.equipo || !form.novedad) return alert("Por favor, ingresa el Equipo y la Novedad.");
-                setRecords([{ ...form, id: Date.now() }, ...records]);
+                
+                if (editId) {
+                    setRecords(records.map(r => r.id === editId ? form : r));
+                } else {
+                    setRecords([{ ...form, id: Date.now() }, ...records]);
+                }
+                
+                cerrarForm();
+            };
+
+            const cerrarForm = () => {
                 setShowForm(false);
+                setEditId(null);
                 setForm({ equipo: "", novedad: "", reporte: "", inicio: "", fin: "", status: "Pendiente", fecha: new Date().toLocaleDateString() });
             };
 
-            // Función para Exportar a Excel (CSV)
+            const eliminar = (id) => {
+                if(confirm("¿Estás seguro de eliminar este registro?")) {
+                    setRecords(records.filter(r => r.id !== id));
+                }
+            };
+
             const exportarExcel = () => {
                 if (records.length === 0) return alert("No hay datos para exportar.");
                 const header = "Fecha,Equipo,Novedad,Status,Hora Reporte,Hora Inicio,Hora Fin,Tiempo de Espera,Duracion Reparacion\n";
                 const csvContent = records.map(r => {
                     const espera = diffMinutes(r.reporte, r.inicio) || "0m";
                     const duracion = diffMinutes(r.inicio, r.fin) || "0m";
-                    return `${r.fecha},"${r.equipo}","${r.novedad}",${r.status},${r.reporte},${r.inicio},${r.fin},${espera},${duracion}`;
+                    return `${r.fecha},"${r.equipo.replace(/"/g, '""')}","${r.novedad.replace(/"/g, '""')}",${r.status},${r.reporte},${r.inicio},${r.fin},${espera},${duracion}`;
                 }).join("\n");
                 
-                const blob = new Blob([header + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const blob = new Blob(["\uFEFF" + header + csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", `Reporte_Sika_${new Date().toLocaleDateString()}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
+                link.href = URL.createObjectURL(blob);
+                link.download = `Reporte_Mantenimiento_${new Date().toISOString().split('T')[0]}.csv`;
                 link.click();
-                document.body.removeChild(link);
             };
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-6xl mx-auto">
-                        {/* Header estilo Claude/Moderno */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                             <div>
-                                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Mantenimiento Sika</h1>
-                                <p className="text-slate-500">Gestión de correctivos e indicadores de tiempo.</p>
+                                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight italic">SIKA MAINTENANCE</h1>
+                                <p className="text-slate-500 font-medium">Panel de Control de Correctivos y Tiempos</p>
                             </div>
                             <div className="flex gap-3">
-                                <button onClick={exportarExcel} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-slate-50 transition">
-                                    <span>📥</span> Exportar Excel
+                                <button onClick={exportarExcel} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold shadow-sm hover:bg-slate-50 transition active:scale-95">
+                                    <span>📊</span> Exportar Excel
                                 </button>
-                                <button onClick={() => setShowForm(true)} className="bg-red-600 text-white px-5 py-2 rounded-lg font-semibold shadow-md hover:bg-red-700 transition">
-                                    + Nuevo Registro
+                                <button onClick={() => setShowForm(true)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition active:scale-95">
+                                    + NUEVO REGISTRO
                                 </button>
                             </div>
                         </div>
 
-                        {/* Tabla Profesional */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-50 border-b border-slate-200">
-                                    <tr className="text-slate-600 text-xs uppercase font-bold tracking-wider">
-                                        <th className="px-6 py-4">Equipo / Novedad</th>
-                                        <th className="px-6 py-4 text-center">T. Reporte</th>
-                                        <th className="px-6 py-4 text-center text-orange-600 italic">Espera</th>
-                                        <th className="px-6 py-4 text-center">T. Inicio</th>
-                                        <th className="px-6 py-4 text-center text-blue-600 italic">Reparación</th>
-                                        <th className="px-6 py-4 text-center">T. Fin</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {records.length === 0 ? (
-                                        <tr><td colSpan="6" className="py-12 text-center text-slate-400 italic">No hay registros hoy.</td></tr>
-                                    ) : (
-                                        records.map(r => (
-                                            <tr key={r.id} className="hover:bg-slate-50/50 transition">
-                                                <td className="px-6 py-4">
-                                                    <div className="font-bold text-slate-800 uppercase">{r.equipo}</div>
-                                                    <div className="text-sm text-slate-500">{r.novedad}</div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center font-mono text-slate-600">{r.reporte || "--:--"}</td>
-                                                <td className="px-6 py-4 text-center bg-orange-50/30">
-                                                    <span className="font-bold text-orange-700">{diffMinutes(r.reporte, r.inicio) || "0m"}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center font-mono text-slate-600">{r.inicio || "--:--"}</td>
-                                                <td className="px-6 py-4 text-center bg-blue-50/30">
-                                                    <span className="font-bold text-blue-700">{diffMinutes(r.inicio, r.fin) || "0m"}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center font-mono text-slate-600">{r.fin || "--:--"}</td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr className="text-slate-500 text-[10px] uppercase font-extrabold tracking-widest">
+                                            <th className="px-6 py-5">Equipo / Novedad</th>
+                                            <th className="px-6 py-5 text-center">T. Reporte</th>
+                                            <th className="px-6 py-5 text-center text-orange-600">Espera</th>
+                                            <th className="px-6 py-5 text-center">T. Inicio</th>
+                                            <th className="px-6 py-5 text-center text-blue-600">Reparación</th>
+                                            <th className="px-6 py-5 text-center">T. Fin</th>
+                                            <th className="px-6 py-5 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {records.length === 0 ? (
+                                            <tr><td colSpan="7" className="py-20 text-center text-slate-400 font-medium italic">No hay registros almacenados.</td></tr>
+                                        ) : (
+                                            records.map(r => (
+                                                <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                                                    <td className="px-6 py-5">
+                                                        <div className="font-extrabold text-slate-800 uppercase text-sm">{r.equipo}</div>
+                                                        <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{r.novedad}</div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center font-mono text-slate-600 text-xs font-bold">{r.reporte || "--:--"}</td>
+                                                    <td className="px-6 py-5 text-center bg-orange-50/40">
+                                                        <span className="font-extrabold text-orange-700 text-xs">{diffMinutes(r.reporte, r.inicio) || "0m"}</span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center font-mono text-slate-600 text-xs font-bold">{r.inicio || "--:--"}</td>
+                                                    <td className="px-6 py-5 text-center bg-blue-50/40">
+                                                        <span className="font-extrabold text-blue-700 text-xs">{diffMinutes(r.inicio, r.fin) || "0m"}</span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center font-mono text-slate-600 text-xs font-bold">{r.fin || "--:--"}</td>
+                                                    <td className="px-6 py-5 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => abrirEditor(r)} className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition">✏️</button>
+                                                            <button onClick={() => eliminar(r.id)} className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition">🗑️</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Modal de Registro */}
                     {showForm && (
-                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 border border-slate-100">
-                                <h2 className="text-xl font-bold text-slate-900 mb-6">Registrar Incidencia</h2>
-                                <div className="space-y-5">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 border border-slate-100">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">
+                                        {editId ? "Editar Registro" : "Nuevo Registro"}
+                                    </h2>
+                                    <button onClick={cerrarForm} className="text-slate-400 hover:text-red-600 transition text-xl">✕</button>
+                                </div>
+                                
+                                <div className="space-y-6">
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">EQUIPO</label>
-                                        <input className="w-full border border-slate-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 uppercase" 
-                                            placeholder="Nombre de la línea o equipo" onChange={e => setForm({...form, equipo: e.target.value})} />
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest">Equipo</label>
+                                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-600 transition uppercase font-bold text-slate-700" 
+                                            value={form.equipo} placeholder="Ej: LINEA TURMIX 1" onChange={e => setForm({...form, equipo: e.target.value})} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">NOVEDAD</label>
-                                        <textarea className="w-full border border-slate-200 rounded-lg p-3 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" 
-                                            placeholder="Describe la falla..." rows="2" onChange={e => setForm({...form, novedad: e.target.value})} />
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-widest">Novedad</label>
+                                        <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-600 transition text-slate-700" 
+                                            value={form.novedad} placeholder="¿Qué ocurrió?" rows="3" onChange={e => setForm({...form, novedad: e.target.value})} />
                                     </div>
-                                    <div className="grid grid-cols-3 gap-4 text-center">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hora Reporte</label>
-                                            <input type="time" className="w-full border border-slate-200 rounded-lg p-2 text-sm" onChange={e => setForm({...form, reporte: e.target.value})} />
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 italic">Reporte</label>
+                                            <input type="time" className="w-full bg-transparent font-bold text-slate-700 outline-none" value={form.reporte} onChange={e => setForm({...form, reporte: e.target.value})} />
                                         </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hora Inicio</label>
-                                            <input type="time" className="w-full border border-slate-200 rounded-lg p-2 text-sm" onChange={e => setForm({...form, inicio: e.target.value})} />
+                                        <div className="bg-orange-50/50 p-3 rounded-2xl border border-orange-100">
+                                            <label className="block text-[9px] font-black text-orange-400 uppercase mb-1 italic">Inicio</label>
+                                            <input type="time" className="w-full bg-transparent font-bold text-slate-700 outline-none" value={form.inicio} onChange={e => setForm({...form, inicio: e.target.value})} />
                                         </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Hora Fin</label>
-                                            <input type="time" className="w-full border border-slate-200 rounded-lg p-2 text-sm" onChange={e => setForm({...form, fin: e.target.value})} />
+                                        <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100">
+                                            <label className="block text-[9px] font-black text-blue-400 uppercase mb-1 italic">Fin</label>
+                                            <input type="time" className="w-full bg-transparent font-bold text-slate-700 outline-none" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
                                         </div>
                                     </div>
-                                    <div className="flex gap-3 pt-4">
-                                        <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50 transition">Cancelar</button>
-                                        <button onClick={guardar} className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 shadow-lg shadow-red-200 transition">Guardar Registro</button>
+                                    <div className="flex gap-4 pt-4">
+                                        <button onClick={cerrarForm} className="flex-1 px-6 py-4 border border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 transition active:scale-95">CANCELAR</button>
+                                        <button onClick={guardar} className="flex-1 px-6 py-4 bg-red-600 text-white rounded-2xl font-black hover:bg-red-700 shadow-xl shadow-red-100 transition active:scale-95 uppercase tracking-tighter italic">
+                                            {editId ? "Actualizar" : "Guardar"}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -175,3 +212,4 @@
     </script>
 </body>
 </html>
+
