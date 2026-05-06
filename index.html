@@ -1,291 +1,194 @@
-import { useState, useEffect } from "react";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛠️ Registro de Correctivos Sika</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
 
-const STATUS_COLORS = {
-  "Pendiente": "bg-yellow-100 text-yellow-800",
-  "En Proceso": "bg-blue-100 text-blue-800",
-  "Resuelto": "bg-green-100 text-green-800",
-};
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-const emptyForm = {
-  fecha: new Date().toISOString().split("T")[0],
-  equipo: "",
-  novedad: "",
-  status: "Pendiente",
-  tiempoReportado: "",
-  tiempoInicio: "",
-  tiempoFin: "",
-};
+        const STATUS_COLORS = {
+            "Pendiente": "bg-yellow-100 text-yellow-800",
+            "En Proceso": "bg-blue-100 text-blue-800",
+            "Resuelto": "bg-green-100 text-green-800",
+        };
 
-function calcDuracion(inicio, fin) {
-  if (!inicio || !fin) return "-";
-  const [h1, m1] = inicio.split(":").map(Number);
-  const [h2, m2] = fin.split(":").map(Number);
-  const total = (h2 * 60 + m2) - (h1 * 60 + m1);
-  if (total < 0) return "Inválido";
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return h > 0 ? ${h}h ${m}m : ${m}m;
-}
+        // Función corregida para calcular Duración (Inicio a Fin)
+        function calcDuracion(inicio, fin) {
+            if (!inicio || !fin) return "-";
+            const [h1, m1] = inicio.split(":").map(Number);
+            const [h2, m2] = fin.split(":").map(Number);
+            let total = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (total < 0) total += 1440; // Manejo de cambio de día
+            const h = Math.floor(total / 60);
+            const m = total % 60;
+            return h > 0 ? h + "h " + m + "m" : m + "m";
+        }
 
-function calcEspera(reportado, inicio) {
-  if (!reportado || !inicio) return null;
-  const [h1, m1] = reportado.split(":").map(Number);
-  const [h2, m2] = inicio.split(":").map(Number);
-  const total = (h2 * 60 + m2) - (h1 * 60 + m1);
-  if (total < 0) return null;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return h > 0 ? ${h}h ${m}m : ${m}m;
-}
+        // Función corregida para calcular Espera (Reportado a Inicio)
+        function calcEspera(reportado, inicio) {
+            if (!reportado || !inicio) return null;
+            const [h1, m1] = reportado.split(":").map(Number);
+            const [h2, m2] = inicio.split(":").map(Number);
+            let total = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (total < 0) total += 1440;
+            const h = Math.floor(total / 60);
+            const m = total % 60;
+            return h > 0 ? h + "h " + m + "m" : m + "m";
+        }
 
-const STORAGE_KEY = "correctivos_data";
+        const STORAGE_KEY = "correctivos_sika_v1";
 
-export default function App() {
-  const [records, setRecords] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editId, setEditId] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [filters, setFilters] = useState({ fecha: "", equipo: "", status: "" });
-  const [loaded, setLoaded] = useState(false);
+        function App() {
+            const [records, setRecords] = useState([]);
+            const [showForm, setShowForm] = useState(false);
+            const [form, setForm] = useState({
+                fecha: new Date().toISOString().split("T")[0],
+                equipo: "",
+                novedad: "",
+                status: "Pendiente",
+                tiempoReportado: "",
+                tiempoInicio: "",
+                tiempoFin: ""
+            });
 
-  // Load from storage
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await window.storage.get(STORAGE_KEY);
-        if (res) setRecords(JSON.parse(res.value));
-      } catch (_) {}
-      setLoaded(true);
-    })();
-  }, []);
+            useEffect(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) setRecords(JSON.parse(saved));
+            }, []);
 
-  // Save to storage
-  useEffect(() => {
-    if (!loaded) return;
-    window.storage.set(STORAGE_KEY, JSON.stringify(records)).catch(() => {});
-  }, [records, loaded]);
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            }, [records]);
 
-  const handleSubmit = () => {
-    if (!form.equipo || !form.novedad) return alert("Equipo y Novedad son obligatorios.");
-    if (editId !== null) {
-      setRecords(r => r.map(rec => rec.id === editId ? { ...form, id: editId } : rec));
-      setEditId(null);
-    } else {
-      setRecords(r => [...r, { ...form, id: Date.now() }]);
-    }
-    setForm(emptyForm);
-    setShowForm(false);
-  };
+            const handleSubmit = () => {
+                if (!form.equipo || !form.novedad) return alert("Equipo y Novedad son obligatorios");
+                setRecords([...records, { ...form, id: Date.now() }]);
+                setForm({ ...form, equipo: "", novedad: "", tiempoReportado: "", tiempoInicio: "", tiempoFin: "" });
+                setShowForm(false);
+            };
 
-  const handleEdit = (rec) => {
-    setForm({ ...rec });
-    setEditId(rec.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = (id) => {
-    if (confirm("¿Eliminar este registro?")) setRecords(r => r.filter(rec => rec.id !== id));
-  };
-
-  const filtered = records.filter(r => {
-    return (
-      (!filters.fecha || r.fecha === filters.fecha) &&
-      (!filters.equipo || r.equipo.toLowerCase().includes(filters.equipo.toLowerCase())) &&
-      (!filters.status || r.status === filters.status)
-    );
-  });
-
-  const exportCSV = () => {
-    const header = "Fecha,Equipo,Novedad,Status,T. Reportado,Tiempo Inicio,Tiempo Fin,Duración,Espera";
-    const rows = filtered.map(r =>
-      ${r.fecha},"${r.equipo}","${r.novedad}",${r.status},${r.tiempoReportado || ""},${r.tiempoInicio || ""},${r.tiempoFin || ""},${calcDuracion(r.tiempoInicio, r.tiempoFin)},${calcEspera(r.tiempoReportado, r.tiempoInicio) || "-"}
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "correctivos.csv"; a.click();
-  };
-
-  const espera = calcEspera(form.tiempoReportado, form.tiempoInicio);
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      {/* Header */}
-      <div className="bg-blue-700 text-white rounded-xl p-4 mb-4 flex items-center justify-between shadow">
-        <div>
-          <h1 className="text-xl font-bold">🛠️ Correctivos del Día</h1>
-          <p className="text-blue-200 text-sm">Registro histórico de incidencias</p>
-        </div>
-        <span className="bg-blue-900 text-white text-sm px-3 py-1 rounded-full">{records.length} registros</span>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow p-3 mb-4 grid grid-cols-3 gap-2">
-        <input type="date" className="border rounded px-2 py-1 text-sm" value={filters.fecha}
-          onChange={e => setFilters(f => ({ ...f, fecha: e.target.value }))} placeholder="Fecha" />
-        <input type="text" className="border rounded px-2 py-1 text-sm" value={filters.equipo}
-          onChange={e => setFilters(f => ({ ...f, equipo: e.target.value }))} placeholder="🔍 Equipo" />
-        <select className="border rounded px-2 py-1 text-sm" value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-          <option value="">Todos los status</option>
-          <option>Pendiente</option>
-          <option>En Proceso</option>
-          <option>Resuelto</option>
-        </select>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true); }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow hover:bg-blue-700">
-          + Nuevo Correctivo
-        </button>
-        <button onClick={exportCSV}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow hover:bg-green-700">
-          ⬇️ Exportar CSV
-        </button>
-        {(filters.fecha || filters.equipo || filters.status) && (
-          <button onClick={() => setFilters({ fecha: "", equipo: "", status: "" })}
-            className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold shadow hover:bg-gray-400">
-            ✕ Limpiar filtros
-          </button>
-        )}
-      </div>
-
-      {/* Form modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5">
-            <h2 className="text-lg font-bold text-blue-700 mb-4">{editId ? "✏️ Editar Correctivo" : "➕ Nuevo Correctivo"}</h2>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500">FECHA</label>
-                <input type="date" className="w-full border rounded-lg px-3 py-2 mt-1"
-                  value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500">EQUIPO *</label>
-                <input type="text" className="w-full border rounded-lg px-3 py-2 mt-1" placeholder="Nombre del equipo"
-                  value={form.equipo} onChange={e => setForm(f => ({ ...f, equipo: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500">NOVEDAD *</label>
-                <textarea className="w-full border rounded-lg px-3 py-2 mt-1 resize-none" rows={2} placeholder="Descripción de la novedad"
-                  value={form.novedad} onChange={e => setForm(f => ({ ...f, novedad: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500">STATUS</label>
-                <select className="w-full border rounded-lg px-3 py-2 mt-1"
-                  value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                  <option>Pendiente</option>
-                  <option>En Proceso</option>
-                  <option>Resuelto</option>
-                </select>
-              </div>
-
-              {/* Tiempo Reportado — full width */}
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500">🕐 TIEMPO REPORTADO</label>
-                <input type="time" className="w-full border rounded-lg px-3 py-2 mt-1"
-                  value={form.tiempoReportado} onChange={e => setForm(f => ({ ...f, tiempoReportado: e.target.value }))} />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500">TIEMPO INICIO</label>
-                <input type="time" className="w-full border rounded-lg px-3 py-2 mt-1"
-                  value={form.tiempoInicio} onChange={e => setForm(f => ({ ...f, tiempoInicio: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500">TIEMPO FIN</label>
-                <input type="time" className="w-full border rounded-lg px-3 py-2 mt-1"
-                  value={form.tiempoFin} onChange={e => setForm(f => ({ ...f, tiempoFin: e.target.value }))} />
-              </div>
-
-              {/* Live preview pills */}
-              {(form.tiempoInicio && form.tiempoFin) || espera ? (
-                <div className="col-span-2 grid grid-cols-2 gap-2">
-                  {espera && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-center text-sm text-orange-700 font-semibold">
-                      ⏳ Espera: {espera}
+            return (
+                <div className="min-h-screen bg-slate-50 p-4 font-sans">
+                    {/* Header Estilo Industrial */}
+                    <div className="bg-red-600 text-white rounded-t-lg p-5 shadow-lg border-b-4 border-red-800">
+                        <h1 className="text-2xl font-black italic">SIKA MAINTENANCE</h1>
+                        <p className="text-sm opacity-90">Registro de Mantenimiento Correctivo</p>
                     </div>
-                  )}
-                  {form.tiempoInicio && form.tiempoFin && (
-                    <div className={bg-blue-50 border border-blue-200 rounded-lg p-2 text-center text-sm text-blue-700 font-semibold ${!espera ? "col-span-2" : ""}}>
-                      ⏱️ Duración: {calcDuracion(form.tiempoInicio, form.tiempoFin)}
+
+                    <div className="bg-white p-4 shadow-md mb-6 flex justify-between items-center rounded-b-lg">
+                        <button onClick={() => setShowForm(true)} className="bg-red-600 text-white px-6 py-2 rounded font-bold uppercase text-sm hover:bg-red-700 transition">
+                            + Registrar Novedad
+                        </button>
+                        <div className="text-right">
+                            <span className="text-xs text-gray-500 block">Total Registros</span>
+                            <span className="text-xl font-bold text-slate-700">{records.length}</span>
+                        </div>
                     </div>
-                  )}
+
+                    {/* Tabla de Datos Principal */}
+                    <div className="bg-white rounded-lg shadow-xl overflow-hidden border border-gray-200">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-800 text-white text-xs uppercase">
+                                    <th className="p-3 border-r border-slate-700">Equipo / Novedad</th>
+                                    <th className="p-3 border-r border-slate-700 text-center">Status</th>
+                                    <th className="p-3 border-r border-slate-700 text-center">T. Reporte</th>
+                                    <th className="p-3 border-r border-slate-700 text-center">T. Inicio</th>
+                                    <th className="p-3 border-r border-slate-700 text-center">T. Fin</th>
+                                    <th className="p-3 bg-orange-600 text-center font-black italic">Espera</th>
+                                    <th className="p-3 bg-blue-600 text-center font-black italic">Reparación</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm">
+                                {records.length === 0 ? (
+                                    <tr><td colSpan="7" className="p-10 text-center text-gray-400 italic">No hay datos registrados hoy.</td></tr>
+                                ) : (
+                                    records.map((r) => (
+                                        <tr key={r.id} className="border-b hover:bg-slate-50 transition">
+                                            <td className="p-3 border-r">
+                                                <div className="font-bold text-slate-800 uppercase">{r.equipo}</div>
+                                                <div className="text-xs text-gray-500">{r.novedad}</div>
+                                            </td>
+                                            <td className="p-3 border-r text-center">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${STATUS_COLORS[r.status]}`}>{r.status}</span>
+                                            </td>
+                                            <td className="p-3 border-r text-center font-mono">{r.tiempoReportado || "--:--"}</td>
+                                            <td className="p-3 border-r text-center font-mono">{r.tiempoInicio || "--:--"}</td>
+                                            <td className="p-3 border-r text-center font-mono">{r.tiempoFin || "--:--"}</td>
+                                            <td className="p-3 border-r text-center font-bold text-orange-600 bg-orange-50">
+                                                {calcEspera(r.tiempoReportado, r.tiempoInicio) || "0m"}
+                                            </td>
+                                            <td className="p-3 text-center font-bold text-blue-700 bg-blue-50">
+                                                {calcDuracion(r.tiempoInicio, r.tiempoFin)}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Modal del Formulario */}
+                    {showForm && (
+                        <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                            <div className="bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden">
+                                <div className="bg-slate-800 p-4 text-white font-bold flex justify-between">
+                                    <span>NUEVO REPORTE</span>
+                                    <button onClick={() => setShowForm(false)}>✕</button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 block mb-1">EQUIPO</label>
+                                        <input type="text" className="w-full border-2 border-slate-200 rounded p-2 focus:border-red-500 outline-none uppercase"
+                                            value={form.equipo} onChange={e => setForm({...form, equipo: e.target.value})} placeholder="Ej: Linea Turmix" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 block mb-1">NOVEDAD / FALLA</label>
+                                        <textarea className="w-full border-2 border-slate-200 rounded p-2 focus:border-red-500 outline-none"
+                                            value={form.novedad} onChange={e => setForm({...form, novedad: e.target.value})} placeholder="Describa el problema..." />
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block mb-1 italic">REPORTADO</label>
+                                            <input type="time" className="w-full border-2 border-slate-200 rounded p-1 text-sm"
+                                                value={form.tiempoReportado} onChange={e => setForm({...form, tiempoReportado: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block mb-1 italic">INICIO TRABAJO</label>
+                                            <input type="time" className="w-full border-2 border-slate-200 rounded p-1 text-sm"
+                                                value={form.tiempoInicio} onChange={e => setForm({...form, tiempoInicio: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block mb-1 italic">FIN TRABAJO</label>
+                                            <input type="time" className="w-full border-2 border-slate-200 rounded p-1 text-sm"
+                                                value={form.tiempoFin} onChange={e => setForm({...form, tiempoFin: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <button onClick={handleSubmit} className="w-full bg-red-600 text-white py-3 rounded font-black hover:bg-red-700 shadow-lg">
+                                        GUARDAR REGISTRO
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
-              ) : null}
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button onClick={handleSubmit} className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700">
-                {editId ? "Guardar cambios" : "Registrar"}
-              </button>
-              <button onClick={() => { setShowForm(false); setEditId(null); }}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            );
+        }
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-        {filtered.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
-            <div className="text-4xl mb-2">📋</div>
-            <p>No hay registros aún.<br />Presiona <strong>+ Nuevo Correctivo</strong> para comenzar.</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-blue-700 text-white">
-                {["Fecha","Equipo","Novedad","Status","T. Reportado","T. Inicio","T. Fin","Duración","Espera","Acciones"].map(h => (
-                  <th key={h} className="px-3 py-3 text-left font-semibold whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r, i) => {
-                const espera = calcEspera(r.tiempoReportado, r.tiempoInicio);
-                return (
-                  <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-3 py-2 whitespace-nowrap">{r.fecha}</td>
-                    <td className="px-3 py-2 font-medium">{r.equipo}</td>
-                    <td className="px-3 py-2 max-w-xs truncate" title={r.novedad}>{r.novedad}</td>
-                    <td className="px-3 py-2">
-                      <span className={px-2 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[r.status]}}>{r.status}</span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{r.tiempoReportado || "-"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{r.tiempoInicio || "-"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{r.tiempoFin || "-"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-semibold text-blue-700">{calcDuracion(r.tiempoInicio, r.tiempoFin)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-semibold text-orange-600">{espera || "-"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap flex gap-1">
-                      <button onClick={() => handleEdit(r)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs">✏️</button>
-                      <button onClick={() => handleDelete(r.id)} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs">🗑️</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
 
-      {/* Summary */}
-      {records.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          {["Pendiente","En Proceso","Resuelto"].map(s => (
-            <div key={s} className={rounded-xl p-3 text-center shadow ${STATUS_COLORS[s]}}>
-              <div className="text-2xl font-bold">{records.filter(r => r.status === s).length}</div>
-              <div className="text-xs font-semibold">{s}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+  
+         
